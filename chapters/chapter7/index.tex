@@ -1,0 +1,8 @@
+\chapter{Reflection and Discussion}
+
+In this paper, we develop two workflows that implement different set of algorithms for clustering analysis. On the same dataset, we observe parallelsim of each workflow and the effectiveness of data partition on the scalability and performance of each workflow. Based on the above system evaluation results, we reflect the insights applicable to dsitributed time series analysis in general. 
+
+\textbf{Multiple Models.} From raw data to extracted insights, there remains a chain of analysis steps. Each step has mutliple choices of models. Composing multiple workflows of different models helps to produce insightful understanding of the data, as well as  effeciency (in term of parallelsim) and effectiveness (in term of accuracy) of the analysis. For example, in the workflow of DBSCAN, we identify the DTW model is computing intensive to generate distance metrics as input to a clustering method. While in the worfklow of Neighbour-Joining, we are able to parallelize this algorithm to an extent, since each iteration dependent on the previous one. We parallelize the steps between two iterations. 
+
+
+\textbf{Model Monitoring.} In fact, any model eventually turns into operations and transformations on data in a data structure, such as hash map, vector and matrix.  When such a data structure is partitioned across distributed nodes, the way of data partition is determined by the size of the data, the avaialble nodes and cores and the transformations. It is necessary to monitor the data partition size and the data shuffling ratio at run-time to make an decision on adjusting the data partition. 

@@ -1,0 +1,30 @@
+\chapter{Introduction}
+
+\label{sec:introduction}
+Internet of Things (IoTs) stand for the evolution of home, mobile and embedded application being connected to the internet to integrate greater computing capabilities. Millions of devices have already been connected to the internet. These intelligent devices and groups of devices acting as systems share data over the cloud. The data generated from these devices have been analyzed to transform the operations of many industrial domains  \cite{zeinab2017internet}. 
+
+%IoT promises many application to human life, making it easier and safer and smarter. Applications range from smart cities, smart homes, transportion, energy, smarter healthcare, and many more. An example of smarter healthcare is the continuous monitoring of a patient health condition through an IoT device, where the physiological data are gathered through sensors and sent to the cloud for analysis. Once the data is stored and analyzed, it is returned to both patient and health care professional for constant flow of information and more effective health care measures. Another application is the use of smart home IoT products to make our lives easier, more convenient and more confortable. Connected home energy equipment such as lighting and thermostat can be tuned to the tenant's preferences when he is present or tuned down during his absence to lower electric bill and energy consumption.   
+
+Data gathered directly from these devices usually are unformatted and have thousands of features. Such raw data need go through transformation, pre-processing and intensive analysis in order to understand the underlying insights of data. A common type of data generated is time-series, which is defined as data that is acquired at a fixed interval over a period time. Examples are datasets of  the home temperature of a smart thermostat over the course of many days; the heart rate gathered by a smart wristband over a run; the GPS location of a smart car driver over the span of the run, and networking infrastructure metrics from a telecommunication service provider reflecting the demand incured by the end-users. On their own, they are processed by any traditional analytical tools, however on a large scale with millions of devices each producing a sequence of time series data, more scalable analysis is essential for applications relying on timely and accurate analysis. An illustrating case of above challenges is observed from data sets collected by a telecommunication service company based in USA where datasets on networking devices have been collected to measure the key performance indicators of the operational networks. A record of each feature of the device is producing a reading at each time stamp. There are over 350 features of each type of devices. These features have correlations but with no prior information. The motivation behind the research methods in this paper is to identify patterns within this dataset, in particular to find correlations between different devices. Such findings lead to applications that yield business values.
+
+The research questions of scalable analysis raise from three aspects upon distributed and parallel development, including: 
+
+\begin{enumerate}
+	\item \textbf{Unknown data correlation} - What are the metrics to measure the correlation? 
+	\item \textbf{High dimentionality} - How to process mutliple features in parallel so that operations on features such as \textit{join} or \textit{group} are executed on partitioned datasets?
+	\item \textbf{Algorithm diversity} - How does an algorithm affact parallism, potentially cause data skrews and evetually degrade scalability? 
+\end{enumerate}
+
+In this paper, we present parallel clustering methods to identify the correlation pattern. We develop techniques to realize a clustering method using different types of algorithms. We design two parallel workflows that each consists of clustering algorithms and their corresponding distance metrics adapted for the distributed parallel computing framework. To horizontally scale the system, we develop techniques  to address data partitioning, load-balancing and data shuffling. We further compare the scalability of these algorithms running in parallel as the data size and the number of distributed worker nodes grow. Each clustering workflow is extensively evaluated to identify the factors related to data locality, data skrew and overall system scalability.  								
+
+
+\section{Contribution}
+
+Our work is primarily focused on understanding the data set in order to build accurate production ready applications at a large scale.  The contributions of this paper are four-fold: 
+
+\begin{itemize}
+	\item Develop algorithms and metrics for time series analysis with accuracy and system performance evaluation;	
+	\item Integrate statistical models into parallel workflows; 
+	\item Identify limitation from experiments on parallisms raised by the relation between workflows and the underlying system framework; 
+	\item Provide tuning recommendations on performing data dependent partitioning.
+\end{itemize}

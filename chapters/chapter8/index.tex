@@ -1,0 +1,28 @@
+\chapter{Related Work}
+
+Challenges from mining large datasets from IoT devices have been recognized in aspects of system capabilities, algorithmic design and business models \cite{mr2017data}, \cite{verleysen2005curse} :
+
+\begin{itemize}
+	\item Analytics Architecture - What is the optimal architecture for data analytics remains unclear; 
+	\item Distributed Machine Learning - Standard machine learning techniques are not trivial to deploy in a distributed envrionment and thus require research 
+	to scope the problems and generate suitable solutions; 
+	\item High Dimensionality - Handling high dimensionality of data requires approaches of compression, sampling and feature engineering that trade-off information accuracy and computing capability.  	
+\end{itemize}
+
+\section{Machine Learning on Internet of Things}
+The proliferation of IoT devices capable of sensing, measuring, infering and sharing these informations across platforms is fueled by a variety of enabling wireless technologies transforming the internet into a fully integrated one. \cite{gubbi2013internet}. 
+Machine learning of IoT device data involves analyzing patterns in large time series to discover hidden information using suitable algorithms based on the problem and the application proposed. \cite{alsheikh2014machine} 
+\cite{khan2012future} These datasets come from various sources, sensors and devices in a multitude of formats. The machine learning  techniques include classification, clustering,
+association analysis, time series forecasting, and outlier detection \cite{mr2017data}
+Although there are many personal, profession and economical benefits from the rise IoT, there are also various challenges associated with the development of IoT. \cite{chen2012challenges} \cite{bandyopadhyay2011internet}
+
+
+\section{Tools for Time Series Data Analysis}		
+A number of open source tools with rich sets of libraries are available for time series
+ data analysis \cite{ahmed2010empirical}
+\cite{kalpakis2001distance}
+\cite{aghabozorgi2015time}
+\cite{montero2014tsclust}.
+Programming langauage of R and Python both support comprehensive algorithms and methods designed for statistical computing
+and visualization \cite{team2013r}. Apache Moa is a non-distributed data stream mining framework that includes implementations of classification, regression, clustering and
+frequent pattern mining \cite{bifet2010moa}. Apache Mahout is a distributed data mining platform based on MapReduce/Hadoop\cite{owen2012mahout} in the batch mode. Therefore, Mahout is not directly suitable for data stream analysis. To overcome the limiation of Mahout on data streams, SAMOA \cite{samoa} features a pluggable architecture that runs several distributed stream processing engines such as Storm, S4, and Samza. In addition, SAMOA is a library for many machine learning algorithms and statistical methods. Comparing to the architecture designed in this paper, we utilize the distributed and parallel framework of Spark akin to the role of SAMOA. Even with a handful choice of distributed data stream processing platforms, the principles  of converting existing algorithms into parallel and distributed environment still remain under-addressed. This is the contribution of this work that we follow a systematic parallel workflow design and optimize the parallelism along each stage of a workflow by scrutinizing the data level operations and their effects on system performance and scalability. 

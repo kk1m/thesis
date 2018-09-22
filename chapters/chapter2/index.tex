@@ -1,0 +1,60 @@
+\chapter{The Problem Statement}
+
+\section{The Dataset}
+
+The dataset under study consists of 358 columns and 305078 rows with empty cells making up approximately 350 MB. The dataset header suggests that each row represents a set of concurrent alarm-like features, and each column represents a specific type of descriptive features related to the status of the router and  presumably the network it is connected to. The large amount of empty cell are presumed to mean that no occurance of a value. The initial assessment of the dataset with limited business knowledge reveales that:
+
+
+\begin{enumerate}
+	\item Data come from multiple devices ;
+	\item All timestamp reading have the set of 350 features;
+	\item Data is highly sparse and over 40 \% timestamps are empty;
+	\item Time intervals that data is sampled are disparat across all devices without a uniform sampling interval. 
+\end{enumerate}
+
+A sample plotting of the data set is depicted in Figure~\ref{Fig:sample-plot}. The plot shows an example of 3 features from 3 devices that is totally 9 time series. The sampling interval is at every 5 seconds and is observed from 0 to 60 seconds. Data coming from the same feature have a similar curve irrespective of the device they are from. Different features also show different behaviors. The three bottom time series show constant low values with little fluctuation.  The middle three series have a spike staring at the 25 second that last till the 45 second before they set back to normal. The upper three time series are of higher values with constant fluctuation.   
+
+\begin{figure*}
+	\includegraphics[keepaspectratio,height=5in, width=6in]{./figures/idealts.png}
+	\caption{Plots of 9 time series of 3 features on 3 devices}
+	\label{Fig:sample-plot}
+\end{figure*}
+
+
+\section{Parallel and Distribution Paradigm}
+Mining patterns on this dataset invovles pair-wise operations of all the data records. The volume of the dataset explored in this paper is only a small portion of the production environment data. The preprocessing operations as Extract-Transform-Load (ETL) and the machine learning algorithms becomes data and computing intensive \cite{rusitschka2010smart}. Parallelism and distribution are both computing paradigms that benefit our data volume. Parallelism is the process of launching multiple computing instances of the same task in parallel. Distributed computing steams from the need of leverage a networked cluster of processing nodes in order to achieve a common computing goal. Parallelism can be achieved on both a single mutli-core node or on a cluster of commodity nodes. By leveraging the elastity of cloud computing that computing nodes are added and removed on demands, it is obvious that combining both computing is more scalable than a single node parallism.  Under this paradigm, the dataset as the input is partitioned over a a number of working nodes, and all the working nodes are executing operations in parallel. 
+
+Frameworks such as Apache Hadoop, Apache Spark and Apache Storm  provides various types of distributed parallel runtimes that allow the programming of data processing and analysis operations. In this paper, we choose to use Apache Spark for building the distributed and parallel data operations that involve functions for ETL and machine learning algorithms. Our choice is two folds. First, we have access to a data center that have virtual instances that contain a full stack of software for running a Spark cluster. Second, the programming model of resilient distributed dataset (RDD) of Spark is suitable to develop our proposed data clustering methods with data models and the associated operations we define. In addition, we leverage the machine learning library of Apache Spark to implement critical steps of our clustering methods.  
+
+\section{Data Partition and Locality}
+The high dimentionality and the big size of the dataset impose the technical challenges on exploring the answers to questions such as 
+\begin{itemize}
+	\item Are different time series datasets correlated to each other? The answer helps us to understand if connected devices have correlations to eah other.
+	\item Which datasets to discard that helps to reduce the computational burden while reserve the analysis accuracy desired?
+	\item Are there recurrent patterns in the dataset that can be discovered by different kinds of clustering methods?
+\end{itemize}
+
+The answers to each question above involve pair wise analysis of features. Suppose there are $n$ number of features and the sample size is $m$, we can estimate the computation size of the dataset is at the level of $n^{2} \times m$. When the computation of analysis exceeds the capacity of a single computing node, it is essential to scale out the analsyis to a distributed cluster. 
+
+With the paradiam of distributed computing, the dataset is partitioned at two levels. At the first level, dataset partitions $m$ samples to $p$ partitions, thus each node has $m \div p$ time series. At this level, the partition is evenly distributed in terms of the data size.
+
+At the second level, operations on pair wised features  such as merging or joining further produce new sets of intermediate data. The new dataset is further aggregated by keys and shuffled cross the partitions. When the partitions are distributed on seperate nodes, the shuffling cause network traffice. 
+
+From above analysis, we further scope the problem to two issues that this paper is focused on: 
+\begin{itemize}
+	\item Data locality. According to an algorithm, the data with correlations are ensured to locate in the same partition or with close partitions. Hence, the analysis tasks at runtime are moved to the location where necessary data locate to complete the computation. 
+	\item Data Repartition. At the intermediate stage of the analysis, newly produced data may cause imbalance of data partitions and thus leads to data skrew. Hence repartition at runtime is performed. In addition, the repartition needs to be tuned to have optimal system performance, such as tuning the frequencies of reparition. 
+\end{itemize}
+
+
+\section{The Method Overview}
+Our distributed and parallel machine learning method addresses the problems defined in the above section from four stages, namely (1) Preprocessing, (2) Distance Matrix Generation, (3) Dimensionality Reduction, and (4) Clustering. 
+
+\textbf{Preprocessing} handles issues such that devices have different sampling intervals; and the samples in time series have missing data. \textbf{Distance Matrix Generation} estimates the correlation among features. Two distance matrix are computed. Each is used as input for one clustering algorithm.  \textbf{Dimesionality Reduction} solves the issue of high dimentionality of features and prepares the time series for clustering analysis. Finally \textbf{Clustering} analysis applies two algorithms to validate the results. Since different matrix and algorithms are applied, the method is realized by two parallel workflows. Figure~\ref{Fig:overview} present a high-level overview of components and sequences two workflows: Workflow 1) \textit{Pre-processing}; \textit{Distance Matrix Generation} using Correlation and \textit{Clustering} using Neighbor-Joining (NJ); and Workflow 2) \textit{Pre-processing}; \textit{Distance Matrix Generation} using Dynamic Time Warping (DTW); \textit{Dimensionality Reduction} using Principal Component Analysis (PCA); \textit{Clustering} using DBSCAN. 
+
+
+\begin{figure*}
+	\includegraphics[keepaspectratio,height=5in, width=6in]{./figures/overview}
+	\caption{Overview of the multi-stage workflow, from data pre-processing, distance metrics generation, dimentionality reduction, to clustering}
+	\label{Fig:overview}
+\end{figure*}

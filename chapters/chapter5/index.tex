@@ -1,0 +1,237 @@
+\chapter{The DBSCAN Clustering Method}
+
+We further explore a clustering method that is time-series pair wise, in addition to the data point based coorelation and clustering method presented in the previous section. Compared to the Neigbhour-Joining clustering method, we aim to observe 1) the difference of algorithms in term of in-memory operations; and 2) the operations' effects on system level attributes including end-to-end delay, scalability,and data shuffling. 
+
+In this method, we first compute the distance of any two pair of time series. This produces a distance matrix that follows the Dynamic Time Warping (DTW) coefficients of any two time series. This distance matrix is further transformed by the algorithm of Principle Component Anlaysis (PCA). PCA transforms the distance matrix into a set of linearly uncorrelated variables,  called principal components. Finally, Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm clusters the output from PCA. An overview of the workflow is presented in Figure~\ref{fig:workflow2}.
+
+\begin{figure*}
+	\includegraphics[keepaspectratio,height=5in, width=6in]{./figures/workflow2}
+	{\caption{An overview of the DBSCAN clustering method. The left most represents the distance matrix of the input time series measured with DTW. PCA is then applied to reduce the dimentionality. These pairs of principle components from PCA are then projected into a two dimensional space where $X$ axis is component 1 and $Y$ axis is component 2. Finally, DBSCAN is applied to these points to find clusters.}
+		\label{fig:workflow2}}
+\end{figure*} 
+
+
+\section{Parallel Processing of Dynamic Time Warping}
+
+DTW measures the similarity between sequences of any two time series that may vary in speed referred as a lag (or delay).  DTW corrects the lag by finding the minimal distance $D(i,j)$ between two time series $X_i$ and $Y_j$. $D(i,j)$ is defined as a recursive function with the mapping starting from $(1,1)$ and ending at $(i,j)$. 
+
+\begin{equation}\label{eq:dtw}
+D(i,j) = | X_i + Y_j |  + \min \Bigl\{ D(i-1,j); D(i-1,j-1); 
+D(i,j-1) \Bigr\} 
+\end{equation}
+
+A naive approach of generating a distance matrix is to iterate through each cell of the matrix and apply Equation (4). Figure~\ref{fig:dtwparallel} illustrates the parallel processing to generate a distance matrix applying Equation~\ref{eq:dtw}. As explained in Section~\ref{subsec:feature_correlation}, our distance matrix abstraction is represented by an RDD of type \textsf{[(Long, Long),Double]}, where both \textsf{Long} variables correspond to indexes of row \textit{i} and column \textit{j}. The \textsf{Double} variable is a placeholder for the distance measure that is the DTW measurement in this case. Indexes \textit{i} and \textit{j} refer to two specific time series.  Hence we generate the distance matrix RDD by means of a \textsf{map} transformation that applies Equation~(\ref{eq:dtw}) to all instances of an RDD.
+
+\begin{figure*}
+	\includegraphics[keepaspectratio,height=3.5in, width=6in]{./figures/dtwparallel}
+	{\caption{The DTW Distance Matrix Computation in Spark. A mapping transformation calculating the DTW algorithm is applied to a an RDD of indexes. Each of these indexes correspond to vectors of values which defines the timeserie.}
+		\label{fig:dtwparallel}}
+\end{figure*} 
+
+%Parallel computation of DTW for all pairwise combinations of timeseries is achieved in Spark by mapping our distance matrix RDD of type [(Long, Long),Double] to a mapping custom function that implements equation (4). Spark's computational engine will break down the RDD into multiple jobs performing equation (4) on different timeseries.
+
+\textbf{Optimization:} The computing complexity of DTW is of $O(n^2)$. An approximation of FastDTW \cite{salvador2007} with computing complexity $O(n)$ is implemented instead. The algorithm of FastDTW is given in Algorithm~\ref{alg:alg2}.
+
+\begin{algorithm}
+	\caption{FastDTW }
+	\label{alg:alg2}
+	\begin{algorithmic}[1]
+		\REQUIRE Time series $X_i, X_j, (i \neq j)$ and  $radius$ - distance to search outside of the projected warp path of the previous resolution when refining the warp path
+		\ENSURE $dtwCoefficient$ between warp path of $X_i$ and $X_j$
+		\STATE \textsf{minTSsize} = \textsf{radius} +2
+		\IF{ ($|X_i| \leq$ \textsf{minTSsize} OR $|X_j| \leq$ \textsf{minTSsize})}
+		\STATE //For small input time series, run traditional DTW
+		\STATE RETURN \textsf{DTW$(X_i, X_j)$}
+		\ELSE
+		\STATE \textsf{$X_i = X_i.$reduceByHalf()}
+		\STATE \textsf{$X_j = X_j.$reduceByHalf()}
+		\STATE \textsf{lowResPath = FastDTW($X_i$,$X_j$, radius)}
+		\STATE \textsf{searchWindow = ExpandedResWindow(lowResPath,$X_i$, $X_j$,radius)}
+		\STATE RETURN \textsf{DTW($X_i,X_j$,searchWindow)}
+		\ENDIF
+		
+	\end{algorithmic}
+\end{algorithm}
+
+
+
+\section{Principle Component Analysis in Parallel}
+We project the high dimention distance matrix into a lowerlinear space to perform spatial clustering in a visualizable space. PCA  performs an orthogonal projection of the distance matrix into a lower dimensional linear space with the maximized variance of the data.
+
+By definition, PCA is obtained by 1) evaluating the covariance matrix $X$ of the dataset and then 2 ) finding the eigenvectors of $X$ through eigen decomposition.
+
+$$ C = Covariance(X) = XX^T/(n-1).$$
+
+Since $C$ is a symmetric matrix, it can be diagonalized such that 
+
+$$ C = VIV^T $$
+
+where $V$ is a matrix of eigen vectors and $I$ is a diagonal matrix of eigen values. The \textit{principal components} of $X$ are now given by $XV$. The i-th principal component is given by the $i$-th column of $XV$. The only parameter specified through PCA is the number of principal components $k$ expected. If the initial matrix $X$ is of dimension $n \times m$, the result of  PCA on $X$ is a $n$ x $k$ matrix, where each column corresponds to a principal component.
+
+The implementation of PCA is derived from the Spark MLLibs library \cite{meng2016mllib}. Using Spark MLLibs, PCA is performed in two stages. The first stage generates the  covariance matrix of $X$. The second stage is the eigan value decomposition achieved through Singular Value Decomposition (SVD). This method accepts a single parameter $k$ that specify how many principal components the user seeks. 
+
+The input is the distance matrix formmatted in \textsf{RDD[vector]}, whereby each vector contains the data points of one time serie.
+
+Internally, the method converts the input \textsf{RDD [Vector]} into Spark \textsf{RowMatrix}, an abstraction of a row-oriented distributed matrix with properties defining the number of rows and columns. \textsf{RowMatrix} consists of a set of numerical algorithms on matrixes that applies breeze \cite{breeze}, a generic, and powerful numerical processing library. 
+%
+%Computation of the top $k$ principal components are performed on a row-level by mapping each rows of observation to a series of numerical computation leverage breeze's api. 
+
+
+Finally, the principal components are stored as a local matrix of size $ n\times k$, where each column corresponds for one principal component. The columns are in descending order of component variance. This matrix is used as input to the DBSCAN algorithm. 
+
+\begin{lstlisting}[style=myScalastyle,caption={ PCA Spark Implementation},captionpos=b]
+def fit(sources: RDD[Vector]): PCAModel = {
+val numFeatures = sources.first().size
+require(k <= numFeatures, s "source vector size $numFeatures must be no less than k=$k")
+
+require(PCAUtil.memoryCost(k, numFeatures) < Int.MaxValue,
+"The param k and numFeatures is too large for SVD computation. " +
+"Try reducing the parameter k for PCA, or reduce the input feature " +
+"vector dimension to make this tractable.")
+
+val mat = new RowMatrix(sources)
+val (pc, explainedVariance) = mat.computePrincipalComponentsAndExplainedVariance(k)
+val densePC = pc match {
+case dm: DenseMatrix => dm
+case sm: SparseMatrix => sm.toDense /*Convert a Spark matrix to dense. */
+case m => throw new IllegalArgumentException("Unsupported matrix format. Expected " +
+s"SparseMatrix or DenseMatrix. Instead got: ${m.getClass}")
+}
+val denseExplainedVariance = explainedVariance match {
+case dv: DenseVector => dv
+case sv: SparseVector => sv.toDense
+}
+new PCAModel(k, densePC, denseExplainedVariance)
+}
+\end{lstlisting}
+
+
+\section{The Parallel DBSCAN Algorithm}
+
+DBSCAN clusters a set of spatial data points based on their proximity. This non-supervised machine learning method does not require prior knowledge of the count of clusters in the dataset and can find clusters of arbitrary shape \cite{dbscan}. Two parameters are expected for the DBSCAN algorithm, namely $minP_{ts}$ and $eps$. $minP_{ts}$ is the minimum number of objects required to form a dense region. $eps$ is a measure of proximity that defines if a spatial point should be considered into a cluster. 
+
+In this paper, we adopt an open source implementation of DBSCAN on Spark~\cite{irvingdbscan} for the two dimensional space clustering. This implies that our input spatial points need to be in two dimensions. This is achieved by using PCA with a number of principal components $k=2$ on our distance matrix. In constrast to the traditional DBSCAN algorithm, this parallel version introduces a third parameter $maxP_{ts}$ that limits the maximum number of points. The implementation of entire workflow using Spark is depicted in Figure~\ref{fig:dbscanspark}.
+
+\begin{figure*}
+	\includegraphics[keepaspectratio,height=4in, width=5in]{./figures/dbscanworkflow}
+	\caption{Overview of DBSCANs workflow adapted for Spark. The distance matrix is the starting point of our workflow where each cell is the coefficient obtained from the distance function applied to $X_i$ and $X_j$. Then the distance matrix is transformed by PCA. In this case, we keep the first two components. These two components are used as spatial coordinates. Each pair of cells is represented as a point in the spatial plot. Eventually DBSCAN is applied to identify clusters.}
+	\label{fig:dbscanspark}
+\end{figure*}
+
+
+\section{Implementation of DBSCAN on Spark}
+
+The parallel implementation of DBSCAN follows the Map-Reduce principles by mapping (or breaking down) the global spatial area that englobes all input data spatial points into smaller areas with even number of spatial points that can be processed in parallel. The results of each smaller areas are then reduced (or aggregated) to obtain the final DBSCAN result for the entire spatial area. The parallel DBSCAN algorithm is broken down into three main stages: 
+\begin{enumerate}
+	\item Data partitionning - consists of spatial points divided evenly into partitions based on their proximity;
+	\item Local clustering - application of a traditional naive DBSCAN to each partition containaing the spatial points;
+	\item Global merging - merging of local clusters of each partition to generate global clusters.
+\end{enumerate}
+
+\textbf{Step 1 Data Partitionning} distributes evenly the input spatial points into smaller rectangular spaces based on spatial proximity. The input is a \textsf{RDD[Vector]}, where each vector is of size two containing a horizontal $x$ and vertical $y$ coordiates of a spatial point. This \textsf{RDD[Vector]} goes through transformations based on spatial density in order to identify their initial partition that is associated with a rectangle subspace space in the global search area. As depicted in Figure~\ref{fig:dbscanrectangles}, a rectangle is an object defined by dialog coordinates. These rectangles are partitions  input to local clustering where DBSCAN is applied to each partition in parallel.
+
+\begin{figure}
+	\includegraphics[keepaspectratio,height=2.5in, width=2.5in]{./figures/dbscanrectangles}
+	\caption{Representation of spatial partitioning in smaller rectangles of the global rectangle area.}
+	\label{fig:dbscanrectangles}
+\end{figure}
+
+
+The rectangle object is generated by mapping each spatial point in the \textsf{RDD[Vector]} to a rectangle space of the size $eps * eps$, where $eps$ is the measure of proximity. \textsf{AggregateByKey} is then used to group and count all the points that fit within the same rectangular space of the size $eps * eps$. The resulting variable \textsf{minimumRectangleWithCounts} is a list of spatial rectangle and the count spatial points it contains and serves as the initial step to data partitionning.
+
+The variable \textsf{minimumRectangleWithCounts}, is then partitionned using the custom  partition method of \textsf{EvenSplitPartitioner}. This recursive methods iterates through each rectangle to ensure a rectangle should contain spatial points less than the \textsf{maxPointsPerPartition}. Otherwise, the partition method recursively splits the rectangle and resizes it untill the regctangle meet that criteria.
+
+The partitions are finally merged to common clusters. These spatial points are formatted  with a label of their respective partition. This variable is a \textsf{RDD[id,point]}, where \textsf{id} is an interger refering to a partition; and \textsf{point} is a tuple of values identifying the spatial coordinates of a data point. 
+
+\begin{lstlisting}[style=myScalastyle,caption={ Data Partitionning in parellel DBSCAN},captionpos=b]
+/* Generate the smallest rectangles that split the space and count the points contained in  each rectangle */
+val minimumRectanglesWithCount =
+vectors
+.map(toMinimumBoundingRectangle)
+.map((_, 1))
+.aggregateByKey(0)(_ + _, _ + _)
+.collect()
+.toSet
+
+// Find the best partitions for the data space 
+val localPartitions = EvenSplitPartitioner
+.partition(minimumRectanglesWithCount, maxPointsPerPartition, minimumRectangleSize)
+
+val localMargins =
+localPartitions
+.map({ case (p, _) => (p.shrink(eps), p, p.shrink(-eps)) })
+.zipWithIndex
+
+/* Broadcast local variable localMargins to be used for parallel processing in the next step */
+val margins = vectors.context.broadcast(localMargins)
+
+// Assign each point to its proper partition
+val duplicated = for {
+point <- vectors.map(DBSCANPoint)
+((inner, main, outer), id) <- margins.value
+if outer.contains(point)
+} yield (id, point)
+
+val numOfPartitions = localPartitions.size
+
+
+\end{lstlisting}
+
+
+\textbf{Step 2 Local DBSCAN} applies Local DBSCAN to each partition of the data. Spatial points are first grouped into their partition using the Spark \textsf{groupByKey} transformation. Then, a traditional local DBSCAN is applied to each partition using the Spark \textsf{flatMapValues} transformation on array of spatial points in this case. 
+
+\begin{lstlisting}[style=myScalastyle,caption={Local DBSCAN},captionpos=b]
+// Perform local dbscan
+val clustered =
+duplicated
+.groupByKey(numOfPartitions)
+.flatMapValues(points =>
+new LocalDBSCANNaive(eps, minPoints).fit(points))
+.cache()
+\end{lstlisting}
+
+
+
+\textbf{Step 3 Global Clustering} merges above local clusters into global clusters. The RDDs in step 2 are labelled by a local cluster \textsf{id} from the local DBSCAN  transformations. The \textsf{map} transformation is applied to the local cluster \textsf{id} by assigning a distinct \textsf{id} to unique clusters and a common cluster \textsf{id} to connected clusters. 
+
+\begin{lstlisting}[style=myScalastyle,caption={Global Clusters generation source code snippet},captionpos=b]	
+// find all cluster ids
+val localClusterIds =
+clustered
+.filter({ case (_, point) => point.flag != Flag.Noise })
+.mapValues(_.cluster)
+.distinct()
+.collect()
+.toList
+
+val (total, clusterIdToGlobalId) = localClusterIds.foldLeft((0, Map[ClusterId, Int]())) {
+case ((id, map), clusterId) => {
+
+map.get(clusterId) match {
+case None => {
+val nextId = id + 1
+val connectedClusters = adjacencyGraph.getConnected(clusterId) + clusterId
+logDebug(s"Connected clusters $connectedClusters")
+val toadd = connectedClusters.map((_, nextId)).toMap
+(nextId, map ++ toadd)
+}
+case Some(x) =>
+(id, map)
+} } }
+\end{lstlisting}
+
+
+
+\section{The Workflow Output}
+
+The output of DBSCAN contains the time series labelled with their associated cluster. The cluster is plotted in Figure~\ref{Fig:dbscan-vis}. The points represent the spatial projection generated by PCA on the distance matrix. Both of the plots are from the same clustering results. To compare with the Neigbhour-Joining clustering method, we plot the data points with labels starting with \textsf{SVCMGR} and \textsf{BGP}. In both cases, the data points of each label further spread into five clusters of different color schemes. 
+The findings are complementary to the Neigbhour-Joining clustering, as DBSCAN provides a finer grained clustering of the data points of the same label prefix.  
+
+
+\begin{figure}
+	\includegraphics[keepaspectratio,height=2.8in, width=2.8in]{./figures/dbscanoutput-1}
+	\includegraphics[keepaspectratio,height=2.8in, width=2.8in]{./figures/dbscanoutput-2}
+	\caption{Visualization of DBSCAN clustering of devices}
+	\label{Fig:dbscan-vis}
+\end{figure}
+

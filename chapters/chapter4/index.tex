@@ -1,0 +1,229 @@
+\chapter{The Correlation and Neighbor-Joining Clustering Method}
+
+\section{Sequential Neighbor-Joining Algorithm}
+
+Neighbor-Joining is an iterative clustering algorithm that each iteration is to find the closest two nodes, join them by replacing new node, and finally calculate the distance of this new node to all other existing nodes. The algorithm contains four stages. 
+
+The first stage of the algorithm iteration computes the sum of rows of input distance matrix, called $R_i$ computation. The variable $R_i$ holds the sum of every row of the input  distance matrix, $dm$. 
+
+The second stage of an iteration is finding the minimum $Q_h$ calculation given by \cite{al2014accelerated}. Minimum $Q_h$ is calculated by application equation $(1)$ on a vectorized version of the distance matrix \cite{fastvectorizeddm}. This vectorized version of the distance matric $DV_{h}$ formats the distance matrix into a vector to simplifie calculation without affecting performance.
+
+\begin{equation}
+Q_h=(N-2)DV(h)-(R(i)+R(j))
+\end{equation}
+
+where $i=1...N-1; j=i+1...N; h = ((i-1)(2n-i)) / (2+j-i)$. 
+
+Equation (1) performs transformations on the distance matrix $dm$ to derive the matrix $Q_{h}$. The smallest value of $Q_{h}$, denoted as $min Q_{h}$, identifies the two closest nodes to merge. 
+
+The third stage involves calculating the new distance values that result from merging the nodes identified by the mininum $Q_{h}$. It calculates the distance of a node {k} to the newly merged node $U_{1}$ as the given formula of Equation (2). The new values are then inserted at their respective distance matrix indexes for the next iteration. 
+
+\begin{equation}
+D_{U_{1}k} = \frac{D_{ik}+D_{jk}}{2}
+\end{equation}
+
+where $k = 1...N$; $k \neq i,j$ and 
+
+$$D_{iz}=\frac{\sum\limits_{k=1}^{N} D_{ik}}{N-2}$$ and $$D_{jz}=\frac{\sum\limits_{k=1}^{N} D_{jk}}{N-2}$$
+
+
+The formula to calculate the branch lengths $L_{iU_1}$ and $L_{jU_1}$ against this newly joint node are given by equations
+
+\begin{equation}
+L_{iU_1} = \frac{D_{ij}+D_{iz}-D_{jz}}{2}
+\end{equation}
+$$L_{jU_1} = \frac{D_{ij}+D_{jz}-D_{iz}}{2}$$
+
+The final stage updates the distance matrix for the next iteration. 
+
+
+Figure~\ref{Fig:njflowdiagram} illustrates a simple example of the neighbor-joining process. The result is a phylogenic tree that visually shows the relationship between time series. Similar to a binary tree, the leafs of this phylogenic tree represents a time series and nodes are connected to others through branches proportional to their level of similarity measured as the distance metrics applied.
+
+\begin{figure*}
+	\begin{center}
+	\includegraphics[keepaspectratio,height=4in, width=5in]{./figures/njflowdiagram.png}
+	\caption{Neighbor-Joining example on arbitrary distance matrix. In iteration 1, the phylogenic tree initializes all the nodes with equal distances. The Q matrix is computed from the inital distance matrix, where time series $a$ and $b$  are identified as the closest nodes. These nodes are joined as node $u$. Their branch length are calculated and the distance matrix is updated. In iteration 2, time series $c$  and $u$ are joined as node $v$. Their branch length are calculated and the distance matrix is updated. In iteration 3, branch node $v$ and timeseries $d$ are joined as node $w$ and their branch length are calculated. The distance between $w$ and $e$ is finalliy calculated.} \label{Fig:njflowdiagram}
+	\end{center}
+
+\end{figure*}
+
+
+\section{Parallel Processing of Feature Correlation}\label{subsec:feature_correlation}
+The Neigbhor-Joining algorithm requires a distance measure for
+every pair-wise combination of time series. These distance measures are stored in a 
+distance matrix that serves as a similarity measure between any two time series. 
+
+The distance matrix is of the size of  $N \times N$, where $N$ is the number of time series in the dataset. We use the correlation coefficient of a pair-wise combination of the time series as the distance measure. The correlation coefficient between two random variables $X$ and $Y$ is defined as $$\rho(X,Y) = \frac{{\bf
+		Cov}(X,Y)}{\sqrt{{\bf Var}(X){\bf Var}(Y)}}$$
+
+The naive approach of generating a distance matrix is to iterate through each cell of the matrix and apply the above formula to corresponding cells.  
+
+We represent cells of a distance matrix using Resilient Distributed Datasets (RDDs) from Apache Spark\cite{zaharia2016apache}. There are native matrix in the Spark. However, operations crucial to the Neighbor-Joining algorithm are not fully supported as the time being of this project. Therefore, we define RDDs of the type \textsf{[(Long, Long), Double]} as our main distributed matrix abstraction in this workflow and use it as the input to the Neighbor-Joining algorithm.
+
+Each cell is represented by an RDD of type \textsf{[(Long, Long), Double]}, where both \textsf{Long} variables correspond to indexes of row $i$ and column $j$. The \textsf{Double} variable is a placeholder for the distance measure. Such an RDD is a distributed variable. 
+
+RDDs are first created by reading the dataset from a stable storage such as HDFS into partitioned collection of records. These RDDs are further transformed by operations such as \textsf{map}, \textsf{filter}, \textsf{groupBy}, \textsf{reduce}. 
+
+The parallelization breaks down a matrix into units of elements. Figure~\ref{fig:dmdistribution} illustrates the partition of the intial matrix into a distributed matrix. 
+
+\begin{figure}
+	\includegraphics[keepaspectratio,height=3in, width=3in]{./figures/distributedMatrix}	
+	{\caption{Left: Standard matrix data structure on a single core. Right: Our matrix abstraction on a distributed environment where RDDs that represent cells of the matrix are spread out amongst three nodes.}	
+		\label{fig:dmdistribution}}
+\end{figure}
+
+\section{Parallel Neigbour-Joining Algorithm}
+
+The parallelization of Neighbor-Joining is limited to the level of each iteration because each iteration depends on its previous one. In every iteration of the algorithm, matrix Qh is calculated using equation (1) on the input distance matrix matrix used to identify the identify the closest two nodes to join. 
+
+The parallelization of this algorithm comes down to parellizaing the calculation of $Q_{h}$. This is achieved by mapping each cell of the initial distance matrix to its new value of $Q_{h}$. The mapping operation is convenient in this process because the new $Q_{h}$  matrix is of the same size as the distance matrix at the beginning of each iteration. The parallelization version of the algorithm is presented in Algorithm~\ref{alg:pnj}. The resulting workflow running on Spark is depicted in Figure~\ref{njworkflow}.
+
+\begin{figure*}
+	
+	\includegraphics[keepaspectratio,height=3in, width=6in]{./figures/njworkflow}
+	\caption{The neighbor-ioining parallel workflow with 4 main stages through every iteration}
+	\label{njworkflow}
+\end{figure*}
+
+
+\begin{algorithm}[htb] 
+	\caption{Parallel Neighbor-Joining Algorithm} 
+	\label{alg:pnj} 
+	\begin{algorithmic}[1] %这个1 表示每一行都显示数字
+		\REQUIRE ~~\\ %算法的输入参数：Input
+		The number of time series $N$; \\
+		The distance matrix $dm$; \\
+		\ENSURE ~~\\ %算法的输出：Output
+		The updated distance matrix $dm$;
+		
+		
+		\STATE Broadcast $dm$
+		\FOR{ $h = 1$ to $N-2$ do}
+		\STATE Compute $R_i$ in parrel. 
+		
+		The cells of the distance matrix are grouped by their row index $i$ and summed using the \textsf{reduceByKey} tranformation. A \textsf{collectAsMap} tranformation is applied to $R_i$ at the beginning of the next stage in order to obtain a \textsf{map} variable with the row $i$ as key and the sum of the row as values;
+		
+		
+		\STATE Broadcast $R_i$;
+		\FORALL{ $i$ , $j$ }
+		\STATE  Compute $Q_{h}$ using broadcasted $R_i$ in parallel using Spark's \textsf{map} transformation. Equation (1) is applied to all cells of the distance matrix $dm$;
+		
+		\ENDFOR
+		\STATE Search the minimum $Q_{h}$ to get neighbors i and j. The Spark \textsf{filter} transformation is applied to obtain the minumum $Q_{h}$;
+		\STATE Node i and j are joined as a new Node $U_h$;
+		\STATE Compute updated distance $D_{uhk}$ according to Equation $(2)$;
+		\STATE Compute branch lengths $L_{iU_h}$ and $L_{jU_h}$ according to Equation $(3)$;
+		\STATE Delete node i and j, and add $U_h$ to current node lists;
+		\STATE Update the distance matrix $dm$;		
+		\ENDFOR
+		\STATE Join the last two nodes
+		\RETURN $dm$
+		
+	\end{algorithmic}
+\end{algorithm}
+
+
+\section{Parallel Processing of Distance Matrix} 
+Another parallelization technique applied is performing matrix operations on a distributed data structure. The Neighbor-Joining algorithm requires reducing by one column and one row conceptually every iteration as the result of merging two closest nodes, as shown in Figure~\ref{fig:reducing-dimension}. 
+
+\begin{figure}
+	\includegraphics[keepaspectratio,height=3in, width=3in]{./figures/rowdeletion}
+	{\caption{Scenario of distance matrix update in one iteration. Left: The black cell corresponds to the smallest value $Q_h$ obtained. Hence the closest nodes $X_6$ and $X_1$ need to be merged. Right: The correponding row and column that contain nodes $X_6$ and $X_1$  are deleted from the distance matrix. A new cell $U$ is placed at the smallest index position, row 1 in this case. The new distance between node $U$ and remaining nodes are computed.}
+		\label{fig:reducing-dimension}}
+\end{figure}
+
+Since we represent the distance matrix in RDDs, deleting a row and a column becomes the operation on query RDDs with keys corresponding to row and colunmn indexes. Adding the merged node is done by create an new RDD with the merged value of distance. Consequently, the remaining RDDs' key are updated to reflect the changing indexes of rows and columns in adjacent sequential order with no gap.  
+
+\section{Optimization}
+We optimize each stage of workflow through the definition of RDDs and transformations on RDDs.
+
+Since $R_i$ computation is run in parallel on each partition of the dataset, $R_i$ is then broadcasted to all nodes as a global variable for subsequent computations. The benefit of this approach is scalability where $R_i$ is otherwise computed using an iterative approach.
+
+\begin{lstlisting}[style=myScalastyle,caption={Finding two closest nodes with a broadcast  variable},captionpos=b]
+def findMinQh(dm:RDD[((Long,Long),Double)]):
+((Long,Long),Double) = {
+
+// Generate a map variable from Ri for quick access during Qh calculation in the next below
+val riMap = computeRi(dm).cache().collectAsMap()
+
+// Broadcast Ri to worker nodes
+val Ri = sqlContext.sparkContext.broadcast(riMap)
+
+//finding Ri using broadcast
+val Qh = dm.map{ case(k,v)=>
+
+//Use broadcasted Ri 
+val ri = Ri.value.getOrElse(k._1,0.0) 
+val rj = Ri.value.getOrElse (k._2,0.0)
+
+val Q = ((N-2) * v) - (ri - rj)
+(k,Q)}.localCheckpoint()
+
+val minQh = Qh.min()(new Ordering[Tuple2[(Long,Long), Double]]() {
+override def compare(x: ((Long,Long), Double), y: ((Long,Long), Double)): Int =
+Ordering[Double].compare(x._2, y._2)})
+
+val minDist = dm.lookup(minQh._1)
+
+//I and J of smallest Qh with value of their corresponding Dij; 
+return (minQh._1,minDist(0))
+}
+\end{lstlisting}
+
+In addition, the calculation of new distance values only apply to cells of the upper diagonal of the matrix, while the lower diagonal carries the redudent data of the upper diagonal. This reduces the caluclation in a distributed envrionment.   
+
+\begin{lstlisting}[style=myScalastyle,caption={Updating the distance matrix reflecting the merging of the two closest nodes},captionpos=b]
+def computeDuhk(dm:RDD[((Long,Long),Double)],
+i:Long,j:Long, Dij: Double):RDD[((Long,Long),Double)]= {
+
+val I = Math.min(i,j); val J = Math.max(i,j) 
+
+val dmWithI = dm.filter( t => t._1._1 == I || t._1._2 == I).localCheckpoint()
+val Dik = dmWithI.map{ t =>	val i = if (t._1._1 == I) t._1._1 else t._1._2
+val k = if (t._1._1 != I) t._1._1 else t._1._2
+(k,(i,t._2)) }.localCheckpoint()
+
+val dmWithJ = dm.filter( t => t._1._1 == J || t._1._2 == J).localCheckpoint()
+val Djk = dmWithJ.map{ t =>	val j = if (t._1._1 == J) t._1._1 else t._1._2
+val k = if (t._1._1 != J) t._1._1 else t._1._2
+(k,(j,t._2)) }.localCheckpoint()
+
+//Return an RDD containing all pairs of elements with matching keys
+val Duk = Dik.join(Djk,initialNumPartitions)
+.map{t =>
+val u =  t._2._1._1 //u will be smaller index
+val k = t._1
+val newDist = (t._2._1._2 + t._2._2._2) /2
+((u,k),newDist)}
+
+//Remove trace of old I and J values
+val subtractedDm = dm.subtractByKey(dmWithI)
+.subtractByKey(dmWithJ)
+
+//Add newly calculated Duk
+val unionDm = subtractedDm.union(Duk)
+
+//Update the old index values of the Dm since we remove rows and colums 
+val updatedIndexDm = unionDm.map{ case ((i,j),v) =>
+val updatedI = if( i > J) i -1 else i
+val updatedJ = if( j > J) j -1 else j
+((updatedI,updatedJ),v)}
+
+////Calculate branch length
+(BranchLiu, BranchLju) = calculateBranchLength(Dij,Dik,Djk)
+
+return updatedIndexDm
+}
+\end{lstlisting}
+
+\section{The Workflow Output}
+The output of the workflow follows the Newick tree format represents graph-theoretical trees with edge lengths. This output is further converted to a cladogram - a diagram that shows the relation between entities based on the branch length. The shorter the branch length, the more related the two entities are. Figure~\ref{Fig:nj-vis} plots the clustering result. In this plot, small regions with muliple short branch lenghts correspond to time series that are closely related.  We observe time series with common labels are grouped into clusters. 
+
+Further zooming in the plot, we observe that neigbhouring features from the same cluster tend to have similar label names, such as starting with \textsf{SVCMGR} or \textsf{BGP}.
+The result helps to futher reducing redudant data based on closely related time series. 
+
+\begin{figure}
+	\includegraphics[keepaspectratio,height=4in, width=3.7in]{./figures/ctlcladogram}
+	\caption{Visualization of Neighbour-Joining clustering of devices.}
+	\label{Fig:nj-vis}
+\end{figure}
