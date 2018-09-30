@@ -44,7 +44,6 @@ Figure~\ref{Fig:njflowdiagram} illustrates a simple example of the neighbor-join
 	\includegraphics[keepaspectratio,height=4in, width=5in]{./figures/njflowdiagram.png}
 	\caption{Neighbor-Joining example on arbitrary distance matrix. In iteration 1, the phylogenic tree initializes all the nodes with equal distances. The Q matrix is computed from the inital distance matrix, where time series $a$ and $b$  are identified as the closest nodes. These nodes are joined as node $u$. Their branch length are calculated and the distance matrix is updated. In iteration 2, time series $c$  and $u$ are joined as node $v$. Their branch length are calculated and the distance matrix is updated. In iteration 3, branch node $v$ and timeseries $d$ are joined as node $w$ and their branch length are calculated. The distance between $w$ and $e$ is finalliy calculated.} \label{Fig:njflowdiagram}
 	\end{center}
-
 \end{figure*}
 
 
@@ -67,9 +66,11 @@ RDDs are first created by reading the dataset from a stable storage such as HDFS
 The parallelization breaks down a matrix into units of elements. Figure~\ref{fig:dmdistribution} illustrates the partition of the intial matrix into a distributed matrix. 
 
 \begin{figure}
+\begin{center}
 	\includegraphics[keepaspectratio,height=3in, width=3in]{./figures/distributedMatrix}	
 	{\caption{Left: Standard matrix data structure on a single core. Right: Our matrix abstraction on a distributed environment where RDDs that represent cells of the matrix are spread out amongst three nodes.}	
 		\label{fig:dmdistribution}}
+\end{center}
 \end{figure}
 
 \section{Parallel Neigbour-Joining Algorithm}
@@ -79,12 +80,12 @@ The parallelization of Neighbor-Joining is limited to the level of each iteratio
 The parallelization of this algorithm comes down to parellizaing the calculation of $Q_{h}$. This is achieved by mapping each cell of the initial distance matrix to its new value of $Q_{h}$. The mapping operation is convenient in this process because the new $Q_{h}$  matrix is of the same size as the distance matrix at the beginning of each iteration. The parallelization version of the algorithm is presented in Algorithm~\ref{alg:pnj}. The resulting workflow running on Spark is depicted in Figure~\ref{njworkflow}.
 
 \begin{figure*}
-	
+	\begin{center}
 	\includegraphics[keepaspectratio,height=3in, width=6in]{./figures/njworkflow}
 	\caption{The neighbor-ioining parallel workflow with 4 main stages through every iteration}
 	\label{njworkflow}
+	\end{center}
 \end{figure*}
-
 
 \begin{algorithm}[htb] 
 	\caption{Parallel Neighbor-Joining Algorithm} 
@@ -127,9 +128,11 @@ The parallelization of this algorithm comes down to parellizaing the calculation
 Another parallelization technique applied is performing matrix operations on a distributed data structure. The Neighbor-Joining algorithm requires reducing by one column and one row conceptually every iteration as the result of merging two closest nodes, as shown in Figure~\ref{fig:reducing-dimension}. 
 
 \begin{figure}
+\begin{center}
 	\includegraphics[keepaspectratio,height=3in, width=3in]{./figures/rowdeletion}
 	{\caption{Scenario of distance matrix update in one iteration. Left: The black cell corresponds to the smallest value $Q_h$ obtained. Hence the closest nodes $X_6$ and $X_1$ need to be merged. Right: The correponding row and column that contain nodes $X_6$ and $X_1$  are deleted from the distance matrix. A new cell $U$ is placed at the smallest index position, row 1 in this case. The new distance between node $U$ and remaining nodes are computed.}
 		\label{fig:reducing-dimension}}
+		\end{center}
 \end{figure}
 
 Since we represent the distance matrix in RDDs, deleting a row and a column becomes the operation on query RDDs with keys corresponding to row and colunmn indexes. Adding the merged node is done by create an new RDD with the merged value of distance. Consequently, the remaining RDDs' key are updated to reflect the changing indexes of rows and columns in adjacent sequential order with no gap.  
@@ -223,7 +226,9 @@ Further zooming in the plot, we observe that neigbhouring features from the same
 The result helps to futher reducing redudant data based on closely related time series. 
 
 \begin{figure}
+	\begin{center}
 	\includegraphics[keepaspectratio,height=4in, width=3.7in]{./figures/ctlcladogram}
 	\caption{Visualization of Neighbour-Joining clustering of devices.}
 	\label{Fig:nj-vis}
+	\end{center}
 \end{figure}

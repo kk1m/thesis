@@ -17,21 +17,25 @@ Data preprocessing helps to assess the correlation between features. The purpose
 	\item Concatenating the time series from different devices sequentially. This approach first creates a list of all devices. Then time series is created for each feature by concatenating the time series of the devices by respecting the order of that list. This is achieved by creating an artificial and longer timeline of readings. Again, empty readings are filled by zero. The order in which the time series is appended must stay consistent accross different features. Figure~\ref{Fig:alignment-concatenate} plots the concatenated time series of Figure~\ref{Fig:sample-plot}.
 	
 	\begin{figure}
+		\begin{center}
 		\includegraphics[keepaspectratio,height=4in, width=3.5in]{./figures/concatts}
 		\caption{The original 9 time series in Figure~\ref{Fig:sample-plot} are aligned into 3 time series.  The 3 devices of the same feature are appended one after the other. Device one has the time serieis from the data points ranging between 0 to 60 seconds; device 2's values range between 65 to 125 seconds; and devices 3' values are from 130 to 190 seconds respectively.}
 		\label{Fig:alignment-concatenate}
+		\end{center}
 	\end{figure}
 	
 \end{enumerate}
 
 
 \begin{figure}
+	\centering
 	\includegraphics[keepaspectratio,height=3in, width=3in]{./figures/binned10ts}
 	\caption{Times series from Figure~\ref{Fig:alignment-concatenate} after applying binning by average on a window of 10 seconds}
 	\label{Fig:binning-10}
 \end{figure}
 
 \begin{figure}
+	\centering
 	\includegraphics[keepaspectratio,height=3in, width=3in]{./figures/binned20ts}
 	\caption{Times series from Figure 4 after applying binning by average on a window of 20 seconds}
 	\label{Fig:binning-20}

@@ -5,6 +5,7 @@ We further explore a clustering method that is time-series pair wise, in additio
 In this method, we first compute the distance of any two pair of time series. This produces a distance matrix that follows the Dynamic Time Warping (DTW) coefficients of any two time series. This distance matrix is further transformed by the algorithm of Principle Component Anlaysis (PCA). PCA transforms the distance matrix into a set of linearly uncorrelated variables,  called principal components. Finally, Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm clusters the output from PCA. An overview of the workflow is presented in Figure~\ref{fig:workflow2}.
 
 \begin{figure*}
+    \centering
 	\includegraphics[keepaspectratio,height=5in, width=6in]{./figures/workflow2}
 	{\caption{An overview of the DBSCAN clustering method. The left most represents the distance matrix of the input time series measured with DTW. PCA is then applied to reduce the dimentionality. These pairs of principle components from PCA are then projected into a two dimensional space where $X$ axis is component 1 and $Y$ axis is component 2. Finally, DBSCAN is applied to these points to find clusters.}
 		\label{fig:workflow2}}
@@ -23,6 +24,7 @@ D(i,j-1) \Bigr\}
 A naive approach of generating a distance matrix is to iterate through each cell of the matrix and apply Equation (4). Figure~\ref{fig:dtwparallel} illustrates the parallel processing to generate a distance matrix applying Equation~\ref{eq:dtw}. As explained in Section~\ref{subsec:feature_correlation}, our distance matrix abstraction is represented by an RDD of type \textsf{[(Long, Long),Double]}, where both \textsf{Long} variables correspond to indexes of row \textit{i} and column \textit{j}. The \textsf{Double} variable is a placeholder for the distance measure that is the DTW measurement in this case. Indexes \textit{i} and \textit{j} refer to two specific time series.  Hence we generate the distance matrix RDD by means of a \textsf{map} transformation that applies Equation~(\ref{eq:dtw}) to all instances of an RDD.
 
 \begin{figure*}
+    \centering
 	\includegraphics[keepaspectratio,height=3.5in, width=6in]{./figures/dtwparallel}
 	{\caption{The DTW Distance Matrix Computation in Spark. A mapping transformation calculating the DTW algorithm is applied to a an RDD of indexes. Each of these indexes correspond to vectors of values which defines the timeserie.}
 		\label{fig:dtwparallel}}
@@ -113,6 +115,7 @@ DBSCAN clusters a set of spatial data points based on their proximity. This non-
 In this paper, we adopt an open source implementation of DBSCAN on Spark~\cite{irvingdbscan} for the two dimensional space clustering. This implies that our input spatial points need to be in two dimensions. This is achieved by using PCA with a number of principal components $k=2$ on our distance matrix. In constrast to the traditional DBSCAN algorithm, this parallel version introduces a third parameter $maxP_{ts}$ that limits the maximum number of points. The implementation of entire workflow using Spark is depicted in Figure~\ref{fig:dbscanspark}.
 
 \begin{figure*}
+    \centering
 	\includegraphics[keepaspectratio,height=4in, width=5in]{./figures/dbscanworkflow}
 	\caption{Overview of DBSCANs workflow adapted for Spark. The distance matrix is the starting point of our workflow where each cell is the coefficient obtained from the distance function applied to $X_i$ and $X_j$. Then the distance matrix is transformed by PCA. In this case, we keep the first two components. These two components are used as spatial coordinates. Each pair of cells is represented as a point in the spatial plot. Eventually DBSCAN is applied to identify clusters.}
 	\label{fig:dbscanspark}
@@ -131,6 +134,7 @@ The parallel implementation of DBSCAN follows the Map-Reduce principles by mappi
 \textbf{Step 1 Data Partitionning} distributes evenly the input spatial points into smaller rectangular spaces based on spatial proximity. The input is a \textsf{RDD[Vector]}, where each vector is of size two containing a horizontal $x$ and vertical $y$ coordiates of a spatial point. This \textsf{RDD[Vector]} goes through transformations based on spatial density in order to identify their initial partition that is associated with a rectangle subspace space in the global search area. As depicted in Figure~\ref{fig:dbscanrectangles}, a rectangle is an object defined by dialog coordinates. These rectangles are partitions  input to local clustering where DBSCAN is applied to each partition in parallel.
 
 \begin{figure}
+    \centering
 	\includegraphics[keepaspectratio,height=2.5in, width=2.5in]{./figures/dbscanrectangles}
 	\caption{Representation of spatial partitioning in smaller rectangles of the global rectangle area.}
 	\label{fig:dbscanrectangles}
@@ -229,6 +233,7 @@ The findings are complementary to the Neigbhour-Joining clustering, as DBSCAN pr
 
 
 \begin{figure}
+    \centering
 	\includegraphics[keepaspectratio,height=2.8in, width=2.8in]{./figures/dbscanoutput-1}
 	\includegraphics[keepaspectratio,height=2.8in, width=2.8in]{./figures/dbscanoutput-2}
 	\caption{Visualization of DBSCAN clustering of devices}

@@ -15,9 +15,11 @@ The dataset under study consists of 358 columns and 305078 rows with empty cells
 A sample plotting of the data set is depicted in Figure~\ref{Fig:sample-plot}. The plot shows an example of 3 features from 3 devices that is totally 9 time series. The sampling interval is at every 5 seconds and is observed from 0 to 60 seconds. Data coming from the same feature have a similar curve irrespective of the device they are from. Different features also show different behaviors. The three bottom time series show constant low values with little fluctuation.  The middle three series have a spike staring at the 25 second that last till the 45 second before they set back to normal. The upper three time series are of higher values with constant fluctuation.   
 
 \begin{figure*}
+\begin{center}
 	\includegraphics[keepaspectratio,height=5in, width=6in]{./figures/idealts.png}
 	\caption{Plots of 9 time series of 3 features on 3 devices}
 	\label{Fig:sample-plot}
+\end{center}
 \end{figure*}
 
 
@@ -53,8 +55,10 @@ Our distributed and parallel machine learning method addresses the problems defi
 \textbf{Preprocessing} handles issues such that devices have different sampling intervals; and the samples in time series have missing data. \textbf{Distance Matrix Generation} estimates the correlation among features. Two distance matrix are computed. Each is used as input for one clustering algorithm.  \textbf{Dimesionality Reduction} solves the issue of high dimentionality of features and prepares the time series for clustering analysis. Finally \textbf{Clustering} analysis applies two algorithms to validate the results. Since different matrix and algorithms are applied, the method is realized by two parallel workflows. Figure~\ref{Fig:overview} present a high-level overview of components and sequences two workflows: Workflow 1) \textit{Pre-processing}; \textit{Distance Matrix Generation} using Correlation and \textit{Clustering} using Neighbor-Joining (NJ); and Workflow 2) \textit{Pre-processing}; \textit{Distance Matrix Generation} using Dynamic Time Warping (DTW); \textit{Dimensionality Reduction} using Principal Component Analysis (PCA); \textit{Clustering} using DBSCAN. 
 
 
-\begin{figure*}
+\begin{figure}
+	\begin{center}
 	\includegraphics[keepaspectratio,height=5in, width=6in]{./figures/overview}
 	\caption{Overview of the multi-stage workflow, from data pre-processing, distance metrics generation, dimentionality reduction, to clustering}
 	\label{Fig:overview}
-\end{figure*}
+	\end{center}
+\end{figure}
